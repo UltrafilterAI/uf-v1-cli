@@ -24,6 +24,10 @@ function resolveProjectId(options: Record<string, any>, runtime: any): string {
   });
 }
 
+function preferConnectorReadAuth(runtime: any): "api_key" | "session" {
+  return runtime.resolvedApiKey() ? "api_key" : "session";
+}
+
 export function registerConnectorCommands(program: Command, context: CommandContext): void {
   const connector = program.command("connector").description("Connector and bucket commands");
 
@@ -33,12 +37,13 @@ export function registerConnectorCommands(program: Command, context: CommandCont
     .option("--project-id <projectId>", "Project id (defaults to current project)")
     .action(
       withRuntime(context, async (runtime, options: { projectId?: string }) => {
-        const projectId = resolveProjectId(options as Record<string, any>, runtime);
+        const auth = preferConnectorReadAuth(runtime);
+        const projectId = auth === "session" ? resolveProjectId(options as Record<string, any>, runtime) : undefined;
         const rows = await runtime.request({
           method: "GET",
           path: "/connectors",
-          auth: "session",
-          query: { project_id: projectId },
+          auth,
+          query: projectId ? { project_id: projectId } : undefined,
         });
         const list = Array.isArray(rows) ? rows : [];
         const human = list
@@ -152,13 +157,13 @@ export function registerConnectorCommands(program: Command, context: CommandCont
       withRuntime(
         context,
         async (runtime, connectorId: string, options: { depth: number; maxObjects: number; prefix?: string }) => {
-          const data = await runtime.request({
-            method: "GET",
-            path: `/connectors/${connectorId}/structure`,
-            auth: "session",
-            query: {
-              depth: options.depth,
-              max_objects: options.maxObjects,
+        const data = await runtime.request({
+          method: "GET",
+          path: `/connectors/${connectorId}/structure`,
+          auth: preferConnectorReadAuth(runtime),
+          query: {
+            depth: options.depth,
+            max_objects: options.maxObjects,
               prefix: options.prefix,
             },
           });
@@ -192,7 +197,7 @@ export function registerConnectorCommands(program: Command, context: CommandCont
           const data = await runtime.request({
             method: "GET",
             path: `/connectors/${connectorId}/samples`,
-            auth: "session",
+            auth: preferConnectorReadAuth(runtime),
             query: {
               prefixes: options.prefix || [],
               extensions: options.ext || [],
@@ -220,7 +225,7 @@ export function registerConnectorCommands(program: Command, context: CommandCont
         const data = await runtime.request({
           method: "GET",
           path: `/connectors/${connectorId}/sample-object`,
-          auth: "session",
+          auth: preferConnectorReadAuth(runtime),
           query: { key: options.key, max_bytes: options.maxBytes },
         });
         return runtime.emitSuccess({
@@ -238,4 +243,3 @@ function collect(value: string, previous: string[]): string[] {
 function parseInteger(value: string): number {
   return Number.parseInt(value, 10);
 }
-

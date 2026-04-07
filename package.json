@@ -1,5 +1,5 @@
 {
-  "name": "@tuzhenzhao/ultrafilter-cli",
+  "name": "@ultrafilterai/ultrafilter-cli",
   "version": "0.1.0",
   "description": "Ultrafilter agent-first CLI (TypeScript rewrite)",
   "type": "commonjs",

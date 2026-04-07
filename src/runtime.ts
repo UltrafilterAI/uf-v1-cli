@@ -6,7 +6,7 @@ import { HttpClient } from "./http";
 import { DEFAULT_PROFILE, type CliProfile, loadProfile, saveProfile } from "./profile";
 import type { AuthMode, EmitMeta, GlobalOptions, JsonValue } from "./types";
 
-const DEFAULT_API_BASE = "https://ultrafilter-api.onrender.com";
+const DEFAULT_API_BASE = "https://p01--uf-v1-alpha--rx59fhdj57cl.code.run";
 const DEFAULT_TIMEOUT_SEC = 30;
 
 function env(name: string): string | undefined {

@@ -63,7 +63,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   program.name("uf");
   program.description("Ultrafilter CLI: agent-first command surface over the Ultrafilter backend");
   program.version(VERSION, "--version", "show program version");
-  program.option("--api-base <apiBase>", "Control API base URL (default: https://ultrafilter-api.onrender.com)");
+  program.option("--api-base <apiBase>", "Control API base URL (default: https://p01--uf-v1-alpha--rx59fhdj57cl.code.run; fallback: https://ultrafilter-api.onrender.com)");
   program.option("--profile <profile>", "Local CLI profile name (default: default)", "default");
   program.option("--json", "Emit deterministic JSON output envelope");
   program.option("--request-timeout <requestTimeout>", "Request timeout in seconds", parseFloat);
