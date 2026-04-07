@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+.vitest/
+.DS_Store
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+.npmrc
+
+# Logs and local debug output
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Local release artifacts
+*.tgz
+
+# Editor and OS noise
+.vscode/
+.idea/
