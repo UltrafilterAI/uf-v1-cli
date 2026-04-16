@@ -54,6 +54,7 @@ Important auth rules:
 - `uf connector create` is API-key-safe and now routes through the `index_session` source flow
 - `uf connector verify` is still legacy session-only; agents should use `uf index source verify --session <session_id>` instead
 - `uf session list/show` is the shared visibility surface for dashboard and CLI work
+- `uf sync clean` is API-key-safe and removes indexed state while keeping the source configuration
 
 ## Output Contract
 
@@ -74,6 +75,24 @@ The `uf index ...` commands return a structured envelope that includes:
 - `artifacts`
 
 `next_actions` always contains exact runnable commands so an agent can continue without guessing.
+
+## Cleanup
+
+Use the existing backend cleanup endpoint through the CLI when you want to wipe indexed state but keep the source.
+
+Examples:
+
+```bash
+uf sync clean my-bucket --type text --confirm
+uf sync clean my-bucket --all-types --confirm
+```
+
+Behavior:
+
+- keeps the connector or managed folder source definition
+- deletes vectors for the selected type(s)
+- deletes indexed manifests and source-object tracking for the selected type(s)
+- does not delete the underlying R2 bucket or uploaded folder contents
 
 ## Safety Rules
 

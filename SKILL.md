@@ -155,6 +155,7 @@ Auth boundary rules for lower-level commands:
 - `uf connector create` with only session auth uses the legacy human `/connectors` path.
 - `uf connector verify` is legacy session-only. For the agent workflow, use `uf index source verify --session <index_session_id>`.
 - `uf connector list`, `inspect`, `samples`, and `sample-object` can use API-key auth.
+- `uf sync clean` is API-key-safe. It deletes indexed state while keeping the bucket or folder source configuration.
 
 Canonical stage order:
 
@@ -259,6 +260,13 @@ Rules:
 - sync requires a prior valid preview from the same `index_session`
 - if preview shows deletions, the agent must pass `--confirm-deletes`
 - sync returns the resulting run id and updates session state
+
+Cleanup rules:
+
+- `uf sync clean <bucket> --type <text|image|pdf> --confirm` deletes vectors, manifests, and source-object tracking for one index type
+- `uf sync clean <bucket> --all-types --confirm` runs the same cleanup for `text`, `image`, and `pdf`
+- cleanup keeps the connector/source definition intact
+- cleanup is not the same as resetting change state; treat those as separate operations
 
 ### Endpoint
 

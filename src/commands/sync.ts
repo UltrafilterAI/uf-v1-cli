@@ -1,6 +1,6 @@
 import type { Command } from "commander";
 import { withRuntime, type CommandContext } from "../commandContext";
-import { safetyBlocked } from "../errors";
+import { CliError, safetyBlocked } from "../errors";
 
 function syncBody(options: {
   mode: string;
@@ -42,6 +42,19 @@ function previewMatchesLast(runtime: any, bucketName: string, mode: string): boo
     return false;
   }
   return String(last.api_key_fingerprint || "") === runtime.apiKeyFingerprint();
+}
+
+function normalizeIndexType(value: string): "text" | "image" | "pdf" {
+  const token = String(value || "").trim().toLowerCase();
+  if (token === "text" || token === "image" || token === "pdf") {
+    return token;
+  }
+  throw new CliError({
+    errorCode: "invalid_index_type",
+    message: `Invalid index type: ${value}. Use text, image, or pdf.`,
+    exitCode: 2,
+    recoverable: false,
+  });
 }
 
 export function registerSyncCommands(program: Command, context: CommandContext): void {
@@ -220,6 +233,80 @@ export function registerSyncCommands(program: Command, context: CommandContext):
           return runtime.emitSuccess({
             data,
             human: `Sync retry started: run=${String((data as any).sync_run_id)} status=${String((data as any).status)}`,
+          });
+        }
+      )
+    );
+
+  sync
+    .command("clean <bucketName>")
+    .description("Delete indexed state for one or more index types while keeping the source configuration")
+    .option("--type <indexType>", "Index type to clean: text, image, or pdf")
+    .option("--all-types", "Clean text, image, and pdf index state")
+    .option("--confirm", "Required confirmation flag")
+    .action(
+      withRuntime(
+        context,
+        async (
+          runtime,
+          bucketName: string,
+          options: { type?: string; allTypes?: boolean; confirm?: boolean }
+        ) => {
+          if (!options.confirm) {
+            throw safetyBlocked("Index clean is destructive. Pass --confirm to proceed.", [
+              `Run \`uf sync clean ${bucketName} --type text --confirm\` for one type.`,
+              `Or run \`uf sync clean ${bucketName} --all-types --confirm\` to wipe text, image, and pdf state.`,
+            ]);
+          }
+          const targets = options.allTypes
+            ? (["text", "image", "pdf"] as const)
+            : options.type
+              ? ([normalizeIndexType(options.type)] as const)
+              : null;
+          if (!targets || targets.length === 0) {
+            throw new CliError({
+              errorCode: "index_type_required",
+              message: "Choose exactly one cleanup target: pass --type <text|image|pdf> or --all-types.",
+              exitCode: 2,
+              recoverable: false,
+            });
+          }
+          if (options.allTypes && options.type) {
+            throw new CliError({
+              errorCode: "conflicting_cleanup_flags",
+              message: "Do not combine --type with --all-types.",
+              exitCode: 2,
+              recoverable: false,
+            });
+          }
+
+          const results: Array<Record<string, any>> = [];
+          for (const indexType of targets) {
+            const data = (await runtime.request({
+              method: "POST",
+              path: `/buckets/${bucketName}/index-clean`,
+              auth: "api_key",
+              body: { index_type: indexType, confirm: true },
+            })) as Record<string, any>;
+            results.push(data);
+          }
+
+          const human = results
+            .map(
+              (row) =>
+                `${String(row.index_type)} cleaned: vectors=${String(row.vector_rows_deleted)} manifests=${String(
+                  row.manifest_rows_deleted
+                )} source_objects=${String(row.source_objects_deleted)}`
+            )
+            .join("\n");
+
+          return runtime.emitSuccess({
+            data: {
+              bucket: bucketName,
+              cleaned_types: results.map((row) => String(row.index_type)),
+              results,
+            },
+            human,
           });
         }
       )
