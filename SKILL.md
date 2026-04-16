@@ -9,16 +9,30 @@ Drive the backend through an agent-first staged workflow instead of dashboard cl
 Implementation note:
 
 - primary runtime is Node/TypeScript (`uf` npm binary)
-- legacy Python entrypoint is compatibility-only and forwards to Node build
+- legacy Python entrypoint is compatibility-only and forwards to the Node build
 
-## Identity Model
+## Start Here
 
-Treat human identity and agent identity separately.
+Default assumptions:
 
-- humans authenticate in the UI
-- agents authenticate with project-scoped API keys
-- the agent must not use email/password login for the normal indexing workflow
-- the backend is the source of truth for API key project scope, status, and audit metadata
+- the CLI talks to the control API base URL, not the frontend URL
+- project-scoped API keys are the default auth mode for agent work
+- session auth exists for bootstrap, testing, and human-operated setup
+
+Read this skill in this order:
+
+1. decide auth mode
+2. establish project context
+3. use `uf index ...` as the primary workflow
+4. fall back to lower-level commands only for debugging or missing features
+
+## Auth Decision Rule
+
+Use exactly one of these modes based on the task.
+
+### Mode 1: Agent Runtime
+
+Use project-scoped API keys for normal indexing, sync, search, and connector work.
 
 Use:
 
@@ -26,6 +40,48 @@ Use:
 uf auth key use <raw_api_key> --json
 uf auth key status --json
 ```
+
+This is the default agent auth mode.
+
+Use it when:
+
+- the task is normal agent execution
+- the project already exists
+- the agent is expected to operate deterministically inside one project
+
+Do not use email/password login for steady-state agent operation.
+
+### Mode 2: Human Session Bootstrap
+
+Use session auth only when the task explicitly involves account creation, human login, testing a user session, or creating the first project/key.
+
+Supported commands:
+
+```text
+uf auth signup --email <email> --password <password> --organization-name <org> --project-name <project>
+uf auth login --email <email> --password <password>
+uf auth dev-login --token <UF_DEV_BACKDOOR_TOKEN>
+uf auth status
+uf auth whoami
+uf auth logout
+```
+
+Use session auth when:
+
+- bootstrapping a new account
+- verifying `/control/signup`, `/control/login`, or `/control/dev-login`
+- creating or selecting a project before switching to API-key auth
+- debugging human-facing auth behavior
+
+Do not stop at session auth if the actual task is indexing automation. Switch to API-key auth after bootstrap.
+
+## Identity Model
+
+Treat human identity and agent identity separately.
+
+- humans authenticate with sessions
+- agents authenticate with project-scoped API keys
+- the backend is the source of truth for API key project scope, status, and audit metadata
 
 The key-status payload is authoritative for:
 
@@ -40,13 +96,39 @@ The key-status payload is authoritative for:
 
 Do not rely on session/key matching for security decisions.
 
+## Shared-State Rule
+
+The CLI is an alternate control surface for the same Ultrafilter project, not a separate subsystem.
+
+Assume shared state is authoritative:
+
+- connectors created in the dashboard should be reusable from the CLI
+- local-folder sources created through the CLI should become visible in the dashboard
+- sync runs started by the agent should appear in shared sync history
+- failed objects discovered during agent sync should be treated as shared project health state
+
+Do not invent parallel agent-only state when shared resources already exist.
+
+## Project Context Rule
+
+Project context must be explicit and stable.
+
+After `signup`, `login`, or `dev-login`:
+
+- the CLI fetches `/control/me`
+- if exactly one project exists, it sets that project as current automatically
+- if a current project is already pinned and still exists, it keeps it
+- if multiple projects exist and no valid current project is pinned, it clears current project and reports `project_selection_required=true`
+
+The agent must read that result and resolve project context before continuing.
+
 ## Primary Workflow
 
 The default agent surface is `uf index ...`.
 
 Low-level commands such as `uf connector ...`, `uf mapping ...`, `uf sync ...`, and `uf search ...` still exist for debugging, but they are not the primary workflow.
 
-The canonical stage order is:
+Canonical stage order:
 
 1. `source`
 2. `selection`
@@ -96,7 +178,8 @@ Supported filters:
 - `exclude_prefixes`
 - `include_extensions`
 - `exclude_extensions`
-- scan budget and sample limit
+- scan budget
+- sample limit
 
 The selection response must tell the agent:
 
@@ -179,11 +262,13 @@ Every successful `uf index ...` command must emit the same top-level JSON envelo
 ## Agent Rules
 
 1. Always prefer `--json` for automation.
-2. Never guess ids. Read and reuse the returned `index_session_id`, `connector_id`, and `sync_run_id`.
+2. Never guess ids. Read and reuse the returned `index_session_id`, `connector_id`, `sync_run_id`, `project_id`, and `key_id`.
 3. Never skip preview.
 4. Never apply deletions without explicit confirmation.
-5. Always read `stage`, `stage_status`, `missing_requirements`, and `next_actions` before deciding the next command.
-6. Treat `auth_context` as the authoritative project scope for the session.
+5. Always read `stage`, `stage_status`, `missing_requirements`, `warnings`, and `next_actions` before deciding the next command.
+6. Treat `auth_context` as the authoritative project scope for the current session.
+7. Use session auth only for bootstrap or auth testing; use API-key auth for normal agent execution.
+8. Talk to the control API base URL, not the frontend URL.
 
 ## Fallback Guidance
 
