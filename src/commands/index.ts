@@ -167,6 +167,15 @@ function parseRouteSpec(value: string): { extension: string; route: string } {
 export function registerIndexCommands(program: Command, context: CommandContext): void {
   const index = program.command("index").description("Agent-first staged indexing workflow");
   const source = index.command("source").description("Configure source stage");
+  const emitSessionStatus = async (runtime: any, options: { session: string }) => {
+    const payload = (await runtime.request({
+      method: "GET",
+      path: `/index-sessions/${resolveSessionId(options as Record<string, any>, runtime)}`,
+      auth: "api_key",
+    })) as GenericRecord;
+    rememberSession(runtime, payload);
+    return runtime.emitStructured({ payload, human: humanSummary(payload) });
+  };
 
   index
     .command("init")
@@ -189,17 +198,13 @@ export function registerIndexCommands(program: Command, context: CommandContext)
     .command("status")
     .description("Show the current index session status")
     .requiredOption("--session <session>", "Index session id")
-    .action(
-      withRuntime(context, async (runtime, options: { session: string }) => {
-        const payload = (await runtime.request({
-          method: "GET",
-          path: `/index-sessions/${resolveSessionId(options as Record<string, any>, runtime)}`,
-          auth: "api_key",
-        })) as GenericRecord;
-        rememberSession(runtime, payload);
-        return runtime.emitStructured({ payload, human: humanSummary(payload) });
-      })
-    );
+    .action(withRuntime(context, emitSessionStatus));
+
+  index
+    .command("check")
+    .description("Check current progress, especially for background sync runs")
+    .requiredOption("--session <session>", "Index session id")
+    .action(withRuntime(context, emitSessionStatus));
 
   source
     .command("bucket")
@@ -399,7 +404,7 @@ export function registerIndexCommands(program: Command, context: CommandContext)
 
   index
     .command("sync")
-    .description("Apply the previewed sync changes")
+    .description("Apply the previewed sync changes and wait for completion")
     .requiredOption("--session <session>", "Index session id")
     .option("--confirm-deletes", "Confirm previewed deletions")
     .option("--yes", "Alias for --confirm-deletes")
@@ -410,6 +415,28 @@ export function registerIndexCommands(program: Command, context: CommandContext)
           const payload = (await runtime.request({
             method: "POST",
             path: `/index-sessions/${resolveSessionId(options as Record<string, any>, runtime)}/sync`,
+            auth: "api_key",
+            body: { confirm_deletes: Boolean(options.confirmDeletes || options.yes) },
+          })) as GenericRecord;
+          rememberSession(runtime, payload);
+          return runtime.emitStructured({ payload, human: humanSummary(payload) });
+        }
+      )
+    );
+
+  index
+    .command("sync-start")
+    .description("Start sync in the background and return immediately")
+    .requiredOption("--session <session>", "Index session id")
+    .option("--confirm-deletes", "Confirm previewed deletions")
+    .option("--yes", "Alias for --confirm-deletes")
+    .action(
+      withRuntime(
+        context,
+        async (runtime, options: { session: string; confirmDeletes?: boolean; yes?: boolean }) => {
+          const payload = (await runtime.request({
+            method: "POST",
+            path: `/index-sessions/${resolveSessionId(options as Record<string, any>, runtime)}/sync-start`,
             auth: "api_key",
             body: { confirm_deletes: Boolean(options.confirmDeletes || options.yes) },
           })) as GenericRecord;

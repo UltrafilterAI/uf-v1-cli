@@ -37,6 +37,8 @@ Main commands:
 - `uf index route --session <session_id> --route .txt=text --route .jpg=image --json`
 - `uf index preview --session <session_id> --json`
 - `uf index sync --session <session_id> [--confirm-deletes] --json`
+- `uf index sync-start --session <session_id> [--confirm-deletes] --json`
+- `uf index check --session <session_id> --json`
 - `uf index endpoint --session <session_id> --json`
 
 The lower-level namespaces remain available:
@@ -55,6 +57,28 @@ Important auth rules:
 - `uf connector verify` is still legacy session-only; agents should use `uf index source verify --session <session_id>` instead
 - `uf session list/show` is the shared visibility surface for dashboard and CLI work
 - `uf sync clean` is API-key-safe and removes indexed state while keeping the source configuration
+
+## Waiting vs Background Sync
+
+Use the blocking sync command for small jobs:
+
+```bash
+uf index sync --session <session_id> --json
+```
+
+Use background sync for larger jobs or when the agent should keep working:
+
+```bash
+uf index sync-start --session <session_id> --json
+uf index check --session <session_id> --json
+uf index endpoint --session <session_id> --json
+```
+
+Guidance:
+
+- small batches can use `uf index sync` and wait
+- larger batches should use `uf index sync-start`
+- `uf index check` is the progress command; agents can call it whenever they want without holding the original sync command open
 
 ## Output Contract
 

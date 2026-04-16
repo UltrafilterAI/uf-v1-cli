@@ -178,6 +178,8 @@ uf index select --session <index_session_id> ... --json
 uf index route --session <index_session_id> --route .txt=text --route .jpg=image --json
 uf index preview --session <index_session_id> --json
 uf index sync --session <index_session_id> [--confirm-deletes] --json
+uf index sync-start --session <index_session_id> [--confirm-deletes] --json
+uf index check --session <index_session_id> --json
 uf index endpoint --session <index_session_id> --json
 ```
 
@@ -260,6 +262,13 @@ Rules:
 - sync requires a prior valid preview from the same `index_session`
 - if preview shows deletions, the agent must pass `--confirm-deletes`
 - sync returns the resulting run id and updates session state
+
+Agent waiting rule:
+
+- for small jobs, it is acceptable to use `uf index sync` and wait for completion
+- for larger jobs, prefer `uf index sync-start` so the agent can continue doing other work
+- after `uf index sync-start`, use `uf index check --session <index_session_id> --json` whenever progress needs to be checked
+- once `check` shows the sync is ready/completed, use `uf index endpoint --session <index_session_id> --json`
 
 Cleanup rules:
 

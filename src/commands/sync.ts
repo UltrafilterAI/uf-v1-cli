@@ -258,23 +258,23 @@ export function registerSyncCommands(program: Command, context: CommandContext):
               `Or run \`uf sync clean ${bucketName} --all-types --confirm\` to wipe text, image, and pdf state.`,
             ]);
           }
-          const targets = options.allTypes
-            ? (["text", "image", "pdf"] as const)
-            : options.type
-              ? ([normalizeIndexType(options.type)] as const)
-              : null;
-          if (!targets || targets.length === 0) {
-            throw new CliError({
-              errorCode: "index_type_required",
-              message: "Choose exactly one cleanup target: pass --type <text|image|pdf> or --all-types.",
-              exitCode: 2,
-              recoverable: false,
-            });
-          }
           if (options.allTypes && options.type) {
             throw new CliError({
               errorCode: "conflicting_cleanup_flags",
               message: "Do not combine --type with --all-types.",
+              exitCode: 2,
+              recoverable: false,
+            });
+          }
+          const targets: Array<"text" | "image" | "pdf"> = options.allTypes
+            ? ["text", "image", "pdf"]
+            : options.type
+              ? [normalizeIndexType(options.type)]
+              : [];
+          if (targets.length === 0) {
+            throw new CliError({
+              errorCode: "index_type_required",
+              message: "Choose exactly one cleanup target: pass --type <text|image|pdf> or --all-types.",
               exitCode: 2,
               recoverable: false,
             });
