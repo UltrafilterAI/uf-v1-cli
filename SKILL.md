@@ -23,8 +23,9 @@ Read this skill in this order:
 
 1. decide auth mode
 2. establish project context
-3. use `uf index ...` as the primary workflow
-4. fall back to lower-level commands only for debugging or missing features
+3. inspect shared work state when needed
+4. use `uf index ...` as the primary workflow
+5. fall back to lower-level commands only for debugging or missing features
 
 ## Auth Decision Rule
 
@@ -109,6 +110,26 @@ Assume shared state is authoritative:
 
 Do not invent parallel agent-only state when shared resources already exist.
 
+## Shared Work Sessions
+
+Use `uf session ...` to inspect work created from either the dashboard or the CLI.
+
+Use:
+
+```text
+uf session list --json
+uf session show <work_session_ref> --json
+```
+
+Expect shared work-session refs such as:
+
+- `index:<uuid>`
+- `mapping:<uuid>`
+- `upload:<uuid>`
+- `sync:<uuid>`
+
+Use this before guessing what happened in a project. The dashboard and the CLI should describe the same underlying work.
+
 ## Project Context Rule
 
 Project context must be explicit and stable.
@@ -127,6 +148,13 @@ The agent must read that result and resolve project context before continuing.
 The default agent surface is `uf index ...`.
 
 Low-level commands such as `uf connector ...`, `uf mapping ...`, `uf sync ...`, and `uf search ...` still exist for debugging, but they are not the primary workflow.
+
+Auth boundary rules for lower-level commands:
+
+- `uf connector create` with an active API key is agent-safe. It creates an `index_session` and attaches the bucket source there.
+- `uf connector create` with only session auth uses the legacy human `/connectors` path.
+- `uf connector verify` is legacy session-only. For the agent workflow, use `uf index source verify --session <index_session_id>`.
+- `uf connector list`, `inspect`, `samples`, and `sample-object` can use API-key auth.
 
 Canonical stage order:
 

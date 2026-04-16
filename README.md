@@ -9,6 +9,7 @@ This repository is a standalone npm package. It is not a second backend. It is a
 The CLI is designed for AI agents and automation systems that need to:
 
 - authenticate with project-scoped API keys
+- inspect shared work sessions created from either the dashboard or the CLI
 - create and resume staged indexing sessions
 - connect a bucket or upload a local folder
 - choose what to index
@@ -25,6 +26,8 @@ Main commands:
 
 - `uf auth key use <raw_key> --json`
 - `uf auth key status --json`
+- `uf session list --json`
+- `uf session show <work_session_ref> --json`
 - `uf index init --json`
 - `uf index status --session <session_id> --json`
 - `uf index source bucket --session <session_id> ... --json`
@@ -44,6 +47,13 @@ The lower-level namespaces remain available:
 - `uf sync ...`
 - `uf search ...`
 - `uf docs ...`
+
+Important auth rules:
+
+- normal agent runtime should use API-key auth
+- `uf connector create` is API-key-safe and now routes through the `index_session` source flow
+- `uf connector verify` is still legacy session-only; agents should use `uf index source verify --session <session_id>` instead
+- `uf session list/show` is the shared visibility surface for dashboard and CLI work
 
 ## Output Contract
 
@@ -78,6 +88,7 @@ The `uf index ...` commands return a structured envelope that includes:
 ```bash
 uf auth key use <raw-managed-api-key> --json
 uf auth key status --json
+uf session list --json
 uf index init --json
 uf index source bucket --session <session_id> --bucket-name my-bucket --provider r2 --region auto --access-key-id <id> --secret-access-key <secret> --json
 uf index source verify --session <session_id> --json

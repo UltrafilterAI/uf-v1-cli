@@ -2,6 +2,8 @@ import type { Command } from "commander";
 import { withRuntime, type CommandContext } from "../commandContext";
 import { CliError } from "../errors";
 
+type GenericRecord = Record<string, any>;
+
 function resolveProjectId(options: Record<string, any>, runtime: any): string {
   const explicit = String(options.projectId || "").trim();
   if (explicit) {
@@ -26,6 +28,19 @@ function resolveProjectId(options: Record<string, any>, runtime: any): string {
 
 function preferConnectorReadAuth(runtime: any): "api_key" | "session" {
   return runtime.resolvedApiKey() ? "api_key" : "session";
+}
+
+function rememberIndexSession(runtime: any, payload: GenericRecord): void {
+  const session = (payload.session || {}) as GenericRecord;
+  const sessionId = String(session.id || "").trim();
+  if (!sessionId) {
+    return;
+  }
+  runtime.profile.last_index_session_id = sessionId;
+  if (session.project_id) {
+    runtime.profile.current_project_id = String(session.project_id || "") || runtime.profile.current_project_id || null;
+  }
+  runtime.saveProfile();
 }
 
 export function registerConnectorCommands(program: Command, context: CommandContext): void {
@@ -85,6 +100,60 @@ export function registerConnectorCommands(program: Command, context: CommandCont
             registerBucket?: boolean;
           }
         ) => {
+          if (runtime.resolvedApiKey()) {
+            const init = (await runtime.request({
+              method: "POST",
+              path: "/index-sessions",
+              auth: "api_key",
+              body: { project_id: options.projectId || null },
+            })) as GenericRecord;
+            rememberIndexSession(runtime, init);
+            const payload = (await runtime.request({
+              method: "POST",
+              path: `/index-sessions/${String((init.session || {}).id || "")}/source/bucket`,
+              auth: "api_key",
+              body: {
+                bucket_name: options.bucketName,
+                provider: options.provider,
+                endpoint_url: options.endpointUrl ?? null,
+                region: options.region ?? null,
+                aws_access_key_id: options.accessKeyId,
+                aws_secret_access_key: options.secretAccessKey,
+              },
+            })) as GenericRecord;
+            rememberIndexSession(runtime, payload);
+            const out: Record<string, unknown> = {
+              mode: "agent_index_session",
+              session: payload.session,
+              source: payload.state?.source || null,
+              summary: payload.summary || null,
+            };
+            if (options.registerBucket) {
+              const registration = await runtime.request({
+                method: "POST",
+                path: `/buckets/${options.bucketName}`,
+                auth: "api_key",
+                body: {
+                  aws_access_key_id: options.accessKeyId,
+                  aws_secret_access_key: options.secretAccessKey,
+                  region: options.region || "auto",
+                  provider: options.provider,
+                  endpoint_url: options.endpointUrl ?? null,
+                },
+              });
+              out.bucket_registration = registration;
+            }
+            let human = `Bucket source attached through index session ${String((payload.session || {}).id || "")}.`;
+            const connectorId = String((((payload.state || {}) as GenericRecord).source || {}).connector_id || "");
+            if (connectorId) {
+              human += `\nConnector ${connectorId} is now the active source for that session.`;
+            }
+            if (options.registerBucket) {
+              human += "\nBucket registered for API key access.";
+            }
+            return runtime.emitSuccess({ data: out, human });
+          }
+
           const projectId = resolveProjectId(options as Record<string, any>, runtime);
           const created = await runtime.request({
             method: "POST",
@@ -132,6 +201,18 @@ export function registerConnectorCommands(program: Command, context: CommandCont
     .description("Verify connector access")
     .action(
       withRuntime(context, async (runtime, connectorId: string) => {
+        if (runtime.resolvedApiKey() && !runtime.resolvedSessionToken()) {
+          throw new CliError({
+            errorCode: "session_required",
+            message: "Connector verify currently requires session auth. For agent workflows, use `uf index source verify --session <id>`.",
+            exitCode: 3,
+            recoverable: true,
+            nextActions: [
+              "Run `uf index status --session <id> --json` to recover the active index session.",
+              "Or run `uf auth login` / `uf auth dev-login` if you need the legacy human-session connector verify path.",
+            ],
+          });
+        }
         const data = await runtime.request({
           method: "POST",
           path: `/connectors/${connectorId}/verify`,

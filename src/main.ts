@@ -11,6 +11,7 @@ import { registerMappingCommands } from "./commands/mapping";
 import { registerSyncCommands } from "./commands/sync";
 import { registerSearchCommands } from "./commands/search";
 import { registerIndexCommands } from "./commands/index";
+import { registerSessionCommands } from "./commands/session";
 import type { CommandContext } from "./commandContext";
 import type { GlobalOptions } from "./types";
 
@@ -78,6 +79,7 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   registerSyncCommands(program, context);
   registerSearchCommands(program, context);
   registerIndexCommands(program, context);
+  registerSessionCommands(program, context);
 
   program.exitOverride();
   const normalizedArgv = normalizeGlobalFlags(argv);
